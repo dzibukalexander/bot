@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/dzibukalexander/bot/internal/service/product"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
 )
@@ -27,14 +28,40 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 
+	productService := product.NewService()
+
 	for update := range updates {
-		if update.Message != nil { // If we got a message
-			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
+		if update.Message == nil { // If we don't got a message
+			continue
+		}
 
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, update.Message.Text)
-			msg.ReplyToMessageID = update.Message.MessageID
-
-			bot.Send(msg)
+		switch update.Message.Command() {
+		case "help":
+			helpCommand(bot, update.Message)
+		case "list":
+			listCommand(bot, update.Message, productService)
+		default:
+			defaultBehaviour(bot, update.Message)
 		}
 	}
+}
+
+func listCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, productService *product.Service) {
+	titleList := "Products:\n\n"
+	for _, product := range productService.ListProduct() {
+		titleList += product.Title + "\n"
+	}
+
+	newMessage := tgbotapi.NewMessage(msg.Chat.ID, titleList)
+	bot.Send(newMessage)
+}
+
+func helpCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
+	bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "/help - help"))
+}
+
+func defaultBehaviour(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
+	newMessage := tgbotapi.NewMessage(msg.Chat.ID, msg.Text)
+	newMessage.ReplyToMessageID = msg.MessageID
+	bot.Send(newMessage)
 }
